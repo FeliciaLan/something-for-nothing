@@ -12,7 +12,13 @@
           }"
         >
           <span>{{ header.title }}</span>
-          <small>{{ header.type }}</small>
+          <small>{{ header.type }} · {{ Math.round(header.sourceWidth) }}px</small>
+          <button
+            class="graph-column-resizer"
+            type="button"
+            aria-label="拖拽调整列宽"
+            @pointerdown.stop.prevent="startColumnResize($event, header)"
+          />
         </div>
       </div>
     </div>
@@ -35,13 +41,26 @@ const props = defineProps<{
 const emit = defineEmits<{
   nodeClick: [nodeId: string]
   nodeDoubleClick: [nodeId: string]
+  columnResize: [columnId: string, width: number]
 }>()
 
 const containerRef = ref<HTMLDivElement>()
 const graphRef = shallowRef<any>()
-const headerViews = ref<Array<{ id: string; title: string; type: string; left: number; width: number }>>([])
+const headerViews = ref<
+  Array<{ id: string; columnId: string; title: string; type: string; left: number; width: number; sourceWidth: number }>
+>([])
 let resizeObserver: ResizeObserver | undefined
 let syncFrame = 0
+let resizeState:
+  | {
+      columnId: string
+      startX: number
+      startWidth: number
+      zoom: number
+      frame: number
+      nextWidth: number
+    }
+  | undefined
 
 const getNodeIdFromEvent = (event: any) => {
   const target = event?.target
@@ -56,10 +75,12 @@ const syncHeader = () => {
   if (!graph) {
     headerViews.value = props.layout.columnHeaders.map((header) => ({
       id: header.id,
+      columnId: header.columnId,
       title: header.title,
       type: header.type,
       left: header.x - header.width / 2,
       width: header.width,
+      sourceWidth: header.width,
     }))
     return
   }
@@ -70,10 +91,12 @@ const syncHeader = () => {
 
     return {
       id: header.id,
+      columnId: header.columnId,
       title: header.title,
       type: header.type,
       left,
       width: header.width * zoom,
+      sourceWidth: header.width,
     }
   })
 }
@@ -81,6 +104,49 @@ const syncHeader = () => {
 const scheduleHeaderSync = () => {
   if (syncFrame) cancelAnimationFrame(syncFrame)
   syncFrame = requestAnimationFrame(syncHeader)
+}
+
+const emitColumnResize = () => {
+  if (!resizeState) return
+  resizeState.frame = 0
+  emit('columnResize', resizeState.columnId, resizeState.nextWidth)
+}
+
+const onColumnResizeMove = (event: PointerEvent) => {
+  if (!resizeState) return
+  const delta = (event.clientX - resizeState.startX) / resizeState.zoom
+  resizeState.nextWidth = Math.max(120, Math.min(420, resizeState.startWidth + delta))
+  if (!resizeState.frame) resizeState.frame = requestAnimationFrame(emitColumnResize)
+}
+
+const stopColumnResize = () => {
+  if (!resizeState) return
+  if (resizeState.frame) cancelAnimationFrame(resizeState.frame)
+  emit('columnResize', resizeState.columnId, resizeState.nextWidth)
+  resizeState = undefined
+  document.body.classList.remove('is-column-resizing')
+  window.removeEventListener('pointermove', onColumnResizeMove)
+  window.removeEventListener('pointerup', stopColumnResize)
+  window.removeEventListener('pointercancel', stopColumnResize)
+}
+
+const startColumnResize = (
+  event: PointerEvent,
+  header: { columnId: string; sourceWidth: number },
+) => {
+  stopColumnResize()
+  resizeState = {
+    columnId: header.columnId,
+    startX: event.clientX,
+    startWidth: header.sourceWidth,
+    zoom: graphRef.value?.getZoom?.() ?? 1,
+    frame: 0,
+    nextWidth: header.sourceWidth,
+  }
+  document.body.classList.add('is-column-resizing')
+  window.addEventListener('pointermove', onColumnResizeMove)
+  window.addEventListener('pointerup', stopColumnResize)
+  window.addEventListener('pointercancel', stopColumnResize)
 }
 
 const renderGraph = async () => {
@@ -181,6 +247,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  stopColumnResize()
   if (syncFrame) cancelAnimationFrame(syncFrame)
   resizeObserver?.disconnect()
   graphRef.value?.off?.('aftertransform', scheduleHeaderSync)

@@ -103,6 +103,7 @@
         :selected-node-id="store.selectedNodeId"
         @node-click="selectNode"
         @node-double-click="toggleNode"
+        @column-resize="setColumnWidth"
       />
     </section>
   </main>
@@ -160,7 +161,11 @@ const showColumn = (columnId: string) => apply(tableTreeCommands.restoreColumn(s
 const moveColumn = (columnId: string, direction: -1 | 1) => apply(tableTreeCommands.moveColumn(store.value, columnId, direction))
 const resizeColumn = (columnId: string, delta: number) => {
   const column = store.value.columns.find((item) => item.id === columnId)
-  if (column) apply(tableTreeCommands.updateColumnWidth(store.value, columnId, column.width + delta))
+  if (column) setColumnWidth(columnId, column.width + delta)
+}
+
+const setColumnWidth = (columnId: string, width: number) => {
+  apply(tableTreeCommands.updateColumnWidth(store.value, columnId, width))
 }
 
 const selectNode = (nodeId: string) => apply(tableTreeCommands.selectNode(store.value, nodeId))

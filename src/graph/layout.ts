@@ -71,6 +71,7 @@ export const buildTableTreeLayout = (store: TableTreeStore): TableTreeLayout => 
   const fallbackX = LEFT_PADDING + visibleColumns.length * (180 + COLUMN_GAP)
   const columnHeaders = visibleColumns.map((column) => ({
     id: `column-header-${column.id}`,
+    columnId: column.id,
     type: column.type,
     title: column.title,
     x: columnStarts[column.type] + column.width / 2,

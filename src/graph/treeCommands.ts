@@ -85,11 +85,12 @@ export const tableTreeCommands = {
   },
 
   updateColumnWidth(store: TableTreeStore, columnId: string, width: number): TableTreeStore {
-    const next = cloneStore(store)
-    next.columns = next.columns.map((column) =>
-      column.id === columnId ? { ...column, width: Math.max(120, Math.min(width, 320)) } : column,
-    )
-    return next
+    return {
+      ...store,
+      columns: store.columns.map((column) =>
+        column.id === columnId ? { ...column, width: Math.max(120, Math.min(width, 420)) } : column,
+      ),
+    }
   },
 
   addNode(store: TableTreeStore, parentId: string | undefined, payload: AddNodePayload): TableTreeStore {

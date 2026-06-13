@@ -50,6 +50,7 @@ export interface LayoutNode extends VisibleNode {
 
 export interface LayoutColumnHeader {
   id: string
+  columnId: string
   type: string
   title: string
   x: number

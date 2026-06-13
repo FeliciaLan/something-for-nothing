@@ -40,6 +40,11 @@ body {
   letter-spacing: 0;
 }
 
+body.is-column-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
 button,
 input,
 select,
@@ -380,6 +385,48 @@ dd {
   padding: 0 10px;
   transform-origin: left top;
   will-change: transform, width;
+}
+
+.graph-column-resizer {
+  position: absolute;
+  top: 4px;
+  right: -5px;
+  width: 10px;
+  height: 34px;
+  min-height: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  cursor: col-resize;
+  padding: 0;
+}
+
+.graph-column-resizer::after {
+  position: absolute;
+  top: 7px;
+  left: 4px;
+  width: 2px;
+  height: 20px;
+  border-radius: 999px;
+  background: #9fb0c4;
+  content: "";
+  opacity: 0;
+  transition:
+    opacity 120ms ease,
+    background 120ms ease;
+}
+
+.graph-column-header:hover .graph-column-resizer::after,
+.graph-column-resizer:hover::after,
+body.is-column-resizing .graph-column-resizer::after {
+  background: var(--primary);
+  opacity: 1;
+}
+
+.graph-column-resizer:hover {
+  border: 0;
+  box-shadow: none;
 }
 
 .graph-column-header span,
