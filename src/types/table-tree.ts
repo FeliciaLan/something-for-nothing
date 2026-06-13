@@ -69,6 +69,8 @@ export interface LayoutEdge {
   controlPoints: [number, number][]
 }
 
+export type TableTreeLayoutMode = 'table' | 'ecological'
+
 export interface TableTreeLayout {
   columnHeaders: LayoutColumnHeader[]
   nodes: LayoutNode[]

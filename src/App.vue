@@ -94,7 +94,25 @@
           <h1>类表格树结构编辑器</h1>
           <p>父子关系独立保存，横向位置始终按照当前列顺序重新排列。</p>
         </div>
-        <button type="button" @click="generateLargeData">生成 2000 节点样例</button>
+        <div class="toolbar-actions">
+          <div class="segmented-control" aria-label="布局模式">
+            <button
+              type="button"
+              :class="{ active: layoutMode === 'table' }"
+              @click="layoutMode = 'table'"
+            >
+              列式布局
+            </button>
+            <button
+              type="button"
+              :class="{ active: layoutMode === 'ecological' }"
+              @click="layoutMode = 'ecological'"
+            >
+              生态树辅助
+            </button>
+          </div>
+          <button type="button" @click="generateLargeData">生成 2000 节点样例</button>
+        </div>
       </div>
 
       <TableTreeGraph
@@ -116,19 +134,20 @@ import { buildTableTreeLayout } from './graph/layout'
 import { tableTreeCommands } from './graph/treeCommands'
 import { getVisibleNodes, getVisibleStats } from './graph/visible'
 import { createInitialStore } from './mock/table-tree-data'
-import type { TableTreeStore } from './types/table-tree'
+import type { TableTreeLayoutMode, TableTreeStore } from './types/table-tree'
 
 const store = shallowRef<TableTreeStore>(createInitialStore())
 const draftLabel = ref('')
 const draftContent = ref('')
 const draftType = ref('domain')
 const targetParentId = ref('')
+const layoutMode = ref<TableTreeLayoutMode>('table')
 const MAX_VISIBLE_RENDER_NODES = 700
 
 const orderedColumns = computed(() => store.value.columns.slice().sort((a, b) => a.order - b.order))
 const selectedNode = computed(() => (store.value.selectedNodeId ? store.value.nodesById[store.value.selectedNodeId] : undefined))
 const isSelectedRoot = computed(() => Boolean(selectedNode.value && store.value.rootIds.includes(selectedNode.value.id)))
-const layout = computed(() => buildTableTreeLayout(store.value))
+const layout = computed(() => buildTableTreeLayout(store.value, layoutMode.value))
 const stats = computed(() => getVisibleStats(store.value))
 const visibleNodeIds = computed(() => new Set(getVisibleNodes(store.value).map((node) => node.id)))
 const allParentCandidates = computed(() =>

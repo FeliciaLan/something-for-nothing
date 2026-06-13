@@ -165,7 +165,6 @@ onMounted(async () => {
     container: containerRef.value,
     width: containerRef.value.clientWidth,
     height: containerRef.value.clientHeight,
-    autoFit: 'view',
     data: toG6Data(props.layout, props.selectedNodeId),
     node: {
       type: 'rect',

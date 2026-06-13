@@ -1,4 +1,12 @@
-import type { LayoutEdge, LayoutNode, TableTreeColumn, TableTreeLayout, TableTreeStore, VisibleNode } from '../types/table-tree'
+import type {
+  LayoutEdge,
+  LayoutNode,
+  TableTreeColumn,
+  TableTreeLayout,
+  TableTreeLayoutMode,
+  TableTreeStore,
+  VisibleNode,
+} from '../types/table-tree'
 import { getVisibleNodes } from './visible'
 
 const ROW_HEIGHT = 82
@@ -8,6 +16,9 @@ const COLUMN_GAP = 42
 const TOP_PADDING = 82
 const LEFT_PADDING = 24
 const NODE_GAP = 24
+const ECO_LEAF_HEIGHT = 68
+const ECO_SIBLING_GAP = 18
+const ECO_SUBTREE_GAP = 44
 
 const getOrderedVisibleColumns = (columns: TableTreeColumn[]) =>
   columns
@@ -27,16 +38,26 @@ const calculateColumnStarts = (columns: TableTreeColumn[]) => {
   return starts
 }
 
-const calculateRows = (nodes: VisibleNode[]) => {
+const getVisibleTreeMaps = (nodes: VisibleNode[]) => {
   const nodeMap = new Map(nodes.map((node) => [node.id, node]))
   const visibleChildren = new Map<string, string[]>()
-  const yById = new Map<string, number>()
-  let row = 0
 
   nodes.forEach((node) => {
     const children = node.childrenIds.filter((childId) => nodeMap.has(childId))
     visibleChildren.set(node.id, children)
   })
+
+  return {
+    nodeMap,
+    roots: nodes.filter((node) => !node.parentId || !nodeMap.has(node.parentId)).map((node) => node.id),
+    visibleChildren,
+  }
+}
+
+const calculateTableRows = (nodes: VisibleNode[]) => {
+  const { roots, visibleChildren } = getVisibleTreeMaps(nodes)
+  const yById = new Map<string, number>()
+  let row = 0
 
   const assign = (nodeId: string): number => {
     const children = visibleChildren.get(nodeId) ?? []
@@ -54,20 +75,90 @@ const calculateRows = (nodes: VisibleNode[]) => {
     return y
   }
 
-  nodes.filter((node) => !node.parentId || !nodeMap.has(node.parentId)).forEach((node) => assign(node.id))
+  roots.forEach((nodeId) => assign(nodeId))
 
   return {
     yById,
-    rows: Math.max(row, 1),
+    contentHeight: TOP_PADDING + Math.max(row, 1) * ROW_HEIGHT,
   }
 }
 
-export const buildTableTreeLayout = (store: TableTreeStore): TableTreeLayout => {
+const calculateEcologicalRows = (nodes: VisibleNode[]) => {
+  const { roots, visibleChildren } = getVisibleTreeMaps(nodes)
+  const yById = new Map<string, number>()
+  const subtreeHeightById = new Map<string, number>()
+
+  const measure = (nodeId: string): number => {
+    const children = visibleChildren.get(nodeId) ?? []
+
+    if (children.length === 0) {
+      subtreeHeightById.set(nodeId, ECO_LEAF_HEIGHT)
+      return ECO_LEAF_HEIGHT
+    }
+
+    const childHeights = children.map(measure)
+    const childrenHeight = childHeights.reduce((sum, height) => sum + height, 0)
+    const childGaps = children.slice(1).reduce((sum, childId, index) => {
+      const previousId = children[index]
+      const previousHeight = subtreeHeightById.get(previousId) ?? ECO_LEAF_HEIGHT
+      const currentHeight = subtreeHeightById.get(childId) ?? ECO_LEAF_HEIGHT
+      const adaptiveGap = Math.min((previousHeight + currentHeight) / 16, 48)
+      return sum + ECO_SIBLING_GAP + adaptiveGap
+    }, 0)
+    const height = Math.max(ECO_LEAF_HEIGHT, childrenHeight + childGaps)
+    subtreeHeightById.set(nodeId, height)
+    return height
+  }
+
+  const assign = (nodeId: string, top: number) => {
+    const children = visibleChildren.get(nodeId) ?? []
+    const height = subtreeHeightById.get(nodeId) ?? ECO_LEAF_HEIGHT
+
+    if (children.length === 0) {
+      yById.set(nodeId, top + height / 2)
+      return
+    }
+
+    let cursor = top
+    children.forEach((childId, index) => {
+      const childHeight = subtreeHeightById.get(childId) ?? ECO_LEAF_HEIGHT
+      assign(childId, cursor)
+      cursor += childHeight
+
+      if (index < children.length - 1) {
+        const nextHeight = subtreeHeightById.get(children[index + 1]) ?? ECO_LEAF_HEIGHT
+        cursor += ECO_SIBLING_GAP + Math.min((childHeight + nextHeight) / 16, 48)
+      }
+    })
+
+    const firstChildY = yById.get(children[0]) ?? top + height / 2
+    const lastChildY = yById.get(children[children.length - 1]) ?? top + height / 2
+    yById.set(nodeId, (firstChildY + lastChildY) / 2)
+  }
+
+  let cursor = TOP_PADDING
+  roots.forEach((rootId, index) => {
+    const height = measure(rootId)
+    assign(rootId, cursor)
+    cursor += height
+    if (index < roots.length - 1) cursor += ECO_SUBTREE_GAP
+  })
+
+  return {
+    yById,
+    contentHeight: Math.max(cursor, TOP_PADDING + ECO_LEAF_HEIGHT),
+  }
+}
+
+const calculateRows = (nodes: VisibleNode[], mode: TableTreeLayoutMode) =>
+  mode === 'ecological' ? calculateEcologicalRows(nodes) : calculateTableRows(nodes)
+
+export const buildTableTreeLayout = (store: TableTreeStore, mode: TableTreeLayoutMode = 'table'): TableTreeLayout => {
   const visibleColumns = getOrderedVisibleColumns(store.columns)
   const visibleNodes = getVisibleNodes(store)
   const columnStarts = calculateColumnStarts(visibleColumns)
   const columnByType = new Map(visibleColumns.map((column, index) => [column.type, { ...column, index }]))
-  const { yById, rows } = calculateRows(visibleNodes)
+  const { yById, contentHeight } = calculateRows(visibleNodes, mode)
   const fallbackX = LEFT_PADDING + visibleColumns.length * (180 + COLUMN_GAP)
   const columnHeaders = visibleColumns.map((column) => ({
     id: `column-header-${column.id}`,
@@ -145,7 +236,8 @@ export const buildTableTreeLayout = (store: TableTreeStore): TableTreeLayout => 
     LEFT_PADDING * 2 +
     visibleColumns.reduce((sum, column) => sum + column.width, 0) +
     Math.max(visibleColumns.length - 1, 0) * COLUMN_GAP
-  const height = HEADER_HEIGHT + TOP_PADDING + rows * ROW_HEIGHT
+  const maxNodeBottom = nodes.reduce((max, node) => Math.max(max, node.y + node.height / 2), contentHeight)
+  const height = HEADER_HEIGHT + TOP_PADDING + maxNodeBottom
 
   return {
     columnHeaders,

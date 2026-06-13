@@ -336,6 +336,45 @@ dd {
   flex: 0 0 auto;
 }
 
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
+.segmented-control {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 3px;
+}
+
+.segmented-control button {
+  min-height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  padding: 0 10px;
+}
+
+.segmented-control button:hover:not(:disabled) {
+  border: 0;
+  box-shadow: none;
+  color: var(--text);
+}
+
+.segmented-control button.active {
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  color: var(--primary-dark);
+}
+
 .graph-shell {
   position: relative;
   min-height: 0;
@@ -471,5 +510,11 @@ body.is-column-resizing .graph-column-resizer::after {
   .toolbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .toolbar-actions {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
   }
 }
