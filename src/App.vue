@@ -111,6 +111,9 @@
               生态树辅助
             </button>
           </div>
+          <button type="button" :disabled="isExporting" @click="exportImage">
+            {{ isExporting ? '导出中...' : '导出图片' }}
+          </button>
           <button type="button" @click="generateLargeData">生成 2000 节点样例</button>
         </div>
       </div>
@@ -130,6 +133,7 @@
 <script setup lang="ts">
 import { computed, shallowRef, ref, watch } from 'vue'
 import TableTreeGraph from './components/TableTreeGraph.vue'
+import { downloadTableTreeImage } from './graph/exportImage'
 import { buildTableTreeLayout } from './graph/layout'
 import { tableTreeCommands } from './graph/treeCommands'
 import { getVisibleNodes, getVisibleStats } from './graph/visible'
@@ -142,6 +146,7 @@ const draftContent = ref('')
 const draftType = ref('domain')
 const targetParentId = ref('')
 const layoutMode = ref<TableTreeLayoutMode>('table')
+const isExporting = ref(false)
 const MAX_VISIBLE_RENDER_NODES = 700
 
 const orderedColumns = computed(() => store.value.columns.slice().sort((a, b) => a.order - b.order))
@@ -243,6 +248,18 @@ const removeSelectedPath = () => {
 const moveSelected = () => {
   if (!selectedNode.value) return
   apply(tableTreeCommands.moveNode(store.value, selectedNode.value.id, targetParentId.value || undefined))
+}
+
+const exportImage = async () => {
+  if (isExporting.value) return
+  isExporting.value = true
+  try {
+    await downloadTableTreeImage(layout.value, store.value.selectedNodeId)
+  } catch (error) {
+    window.alert(error instanceof Error ? error.message : '图片导出失败。')
+  } finally {
+    isExporting.value = false
+  }
 }
 
 const generateLargeData = () => {

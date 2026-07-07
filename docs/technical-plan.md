@@ -426,9 +426,126 @@ MAX_VISIBLE_RENDER_NODES = 700
 
 “移动到父节点”的下拉框只显示当前可见节点中的候选项，并限制前 200 个，避免 select 一次性渲染几千个 option。
 
-## 9. 代码文件说明
+## 9. 图片导出方案
 
-### 9.1 `src/main.ts`
+图片导出不能直接截取当前 G6 画布。
+
+原因是当前界面把内容拆成了两层：
+
+```text
+DOM 表头层：固定在顶部
+G6 画布层：渲染树节点和连线
+```
+
+如果只导出 G6 画布，会丢失表头；如果用浏览器截图，又只能截到当前视口，用户缩放或拖拽后无法得到完整树。
+
+因此当前采用“离屏 Canvas 重绘”的方案：
+
+```text
+TableTreeLayout -> Canvas 2D -> PNG
+```
+
+导出时直接读取布局结果 `TableTreeLayout`，重新绘制：
+
+- 背景
+- 列背景
+- 列头
+- 节点
+- 节点内容
+- 展开 / 折叠标记
+- 正向 / 反向折线连线
+
+这样导出的图片和当前画布缩放、拖拽位置无关。
+
+### 9.1 表头一并导出
+
+表头在页面上是 DOM overlay，但导出时不会复用 DOM。
+
+导出工具会读取：
+
+```ts
+layout.columnHeaders
+```
+
+然后按同一套坐标绘制列头：
+
+```text
+header.left = header.x - header.width / 2
+header.width = column.width
+```
+
+节点同样来自 `layout.nodes`：
+
+```text
+node.left = node.x - node.width / 2
+node.width = column.width
+```
+
+因此导出图片里的表头和节点仍然保持列宽一致、横向对齐。
+
+### 9.2 缩放后完整导出
+
+导出不读取 G6 当前 viewport transform。
+
+也就是说，下面这些操作不会影响导出范围：
+
+- 用户放大
+- 用户缩小
+- 用户横向拖动画布
+- 用户纵向拖动画布
+- 当前屏幕只显示局部树
+
+导出范围由布局数据决定：
+
+```text
+exportWidth = layout.width + padding * 2
+exportHeight = max(layout.height, 节点底部, 连线底部, 表头底部) + padding * 2
+```
+
+所以导出的是当前可见树的完整布局，而不是当前屏幕视口。
+
+这里的“当前可见树”指：遵守当前展开 / 折叠状态后实际渲染出来的节点。已经折叠在子树里的节点不会出现在图片中。
+
+### 9.3 大节点量导出
+
+浏览器 Canvas 有实际尺寸限制。不同浏览器和设备的上限不同，常见风险包括：
+
+- 单边过长导致 Canvas 创建失败。
+- 总像素过大导致内存暴涨。
+- 生成 PNG 时页面短暂卡顿。
+
+当前导出工具使用自适应倍率：
+
+```text
+scale = min(devicePixelRatio, 最大边长限制, 最大像素面积限制)
+```
+
+当前限制：
+
+```text
+MAX_EXPORT_SIDE = 16384
+MAX_EXPORT_AREA = 64_000_000
+```
+
+当树特别高或特别宽时，导出工具会自动降低像素倍率，优先保证完整内容都在同一张 PNG 中。
+
+这个策略的取舍是：
+
+```text
+优先完整性
+其次清晰度
+```
+
+如果未来需要 1 万节点以上仍然保持高清，建议增加：
+
+1. 分片导出：按纵向切成多张 PNG。
+2. PDF 导出：每一页承载一个固定高度区间。
+3. SVG 导出：适合结构图，但节点阴影、复杂样式和超大文本需要额外处理。
+4. 后端导出：用 Node canvas / headless browser 在服务端生成大图，避免占用用户浏览器内存。
+
+## 10. 代码文件说明
+
+### 10.1 `src/main.ts`
 
 应用入口文件。
 
@@ -440,7 +557,7 @@ MAX_VISIBLE_RENDER_NODES = 700
 
 这个文件不包含业务逻辑。
 
-### 9.2 `src/App.vue`
+### 10.2 `src/App.vue`
 
 主页面组件，也是当前 Demo 的业务编排层。
 
@@ -455,6 +572,7 @@ MAX_VISIBLE_RENDER_NODES = 700
 - 调用 command 层完成列和树的编辑。
 - 生成 2000 节点模拟数据。
 - 控制展开保护阈值，避免一次性渲染过多节点。
+- 触发完整图片导出。
 
 重要点：
 
@@ -464,7 +582,7 @@ const store = shallowRef<TableTreeStore>(createInitialStore())
 
 这里选择 `shallowRef` 是性能关键点。全量树数据只通过替换 store 引用触发更新，不让 Vue 对每个节点对象建立深层响应式代理。
 
-### 9.3 `src/components/TableTreeGraph.vue`
+### 10.3 `src/components/TableTreeGraph.vue`
 
 G6 图组件。
 
@@ -490,7 +608,7 @@ const zoom = graph.getZoom()
 
 前者把列头左边界从 G6 画布坐标转换成 DOM 视口坐标；后者拿到当前缩放比例，用于同步表头宽度。
 
-### 9.4 `src/types/table-tree.ts`
+### 10.4 `src/types/table-tree.ts`
 
 类型定义文件。
 
@@ -507,7 +625,7 @@ const zoom = graph.getZoom()
 
 这个文件是模块之间的契约。后续如果接后端接口，也应优先对齐这里的数据模型。
 
-### 9.5 `src/mock/table-tree-data.ts`
+### 10.5 `src/mock/table-tree-data.ts`
 
 初始 mock 数据文件。
 
@@ -524,7 +642,7 @@ const zoom = graph.getZoom()
 - 节点有 label 和 content。
 - 默认路径体现列式树结构。
 
-### 9.6 `src/graph/treeCommands.ts`
+### 10.6 `src/graph/treeCommands.ts`
 
 树和列的 command 层。
 
@@ -552,7 +670,7 @@ const zoom = graph.getZoom()
 
 这个文件后续可以自然扩展 undo / redo，因为所有变更都集中在 command API。
 
-### 9.7 `src/graph/visible.ts`
+### 10.7 `src/graph/visible.ts`
 
 可见节点计算文件。
 
@@ -571,7 +689,7 @@ G6 只渲染 visible.ts 计算出来的节点
 
 这是大数据量优化的第一层。
 
-### 9.8 `src/graph/layout.ts`
+### 10.8 `src/graph/layout.ts`
 
 自定义布局引擎。
 
@@ -597,7 +715,7 @@ width 等于对应列宽
 
 因此节点无法脱离所属列。
 
-### 9.9 `src/graph/g6Adapter.ts`
+### 10.9 `src/graph/g6Adapter.ts`
 
 G6 数据适配器。
 
@@ -613,7 +731,23 @@ G6 数据适配器。
 
 原因是表头需要锁定在顶部，如果作为 G6 节点会随着画布上下拖动。
 
-### 9.10 `src/styles.css`
+### 10.10 `src/graph/exportImage.ts`
+
+图片导出工具。
+
+职责：
+
+- 根据 `TableTreeLayout` 离屏绘制完整图片。
+- 绘制列背景和列头。
+- 绘制树节点、节点内容、展开 / 折叠标记。
+- 绘制无箭头折线连线。
+- 自动计算导出范围，不受当前画布缩放和拖拽影响。
+- 在大图场景下自动降低导出倍率，避免超过浏览器 Canvas 尺寸限制。
+- 生成并下载 PNG 文件。
+
+这个文件故意不依赖 G6 实例，因为导出目标是完整布局，而不是当前屏幕视口。
+
+### 10.11 `src/styles.css`
 
 全局样式文件。
 
@@ -640,7 +774,7 @@ G6 数据适配器。
 }
 ```
 
-### 9.11 `src/styles.css` 与 `TableTreeGraph.vue` 的协作关系
+### 10.12 `src/styles.css` 与 `TableTreeGraph.vue` 的协作关系
 
 表头同步不是单纯 CSS 能完成的，它依赖两个部分：
 
@@ -653,7 +787,7 @@ G6 数据适配器。
 - `.graph-container` 的 `top`
 - 可能还需要调整 layout 中的 `TOP_PADDING`
 
-### 9.12 配置文件
+### 10.13 配置文件
 
 `package.json`：
 
@@ -675,7 +809,7 @@ G6 数据适配器。
 - Vite HTML 入口。
 - 提供 `#app` 挂载点。
 
-## 10. 后续性能增强方向
+## 11. 后续性能增强方向
 
 如果后续需要支持 1 万、10 万级别节点，建议继续做：
 
@@ -686,7 +820,7 @@ G6 数据适配器。
 5. 搜索定位：只展开命中路径，而不是展开整棵树。
 6. Web Worker 布局：大规模布局计算放到 worker，避免阻塞主线程。
 
-## 11. Vue2 + G6 是否可以实现
+## 12. Vue2 + G6 是否可以实现
 
 可以实现相同效果。
 
@@ -703,7 +837,7 @@ G6 数据适配器。
 
 不过 Vue2 实现时要注意以下差异。
 
-### 11.1 状态管理
+### 12.1 状态管理
 
 Vue2 的响应式系统对大对象和动态属性不如 Vue3 方便。
 
@@ -733,7 +867,7 @@ methods: {
 
 如果使用 Vuex，也建议避免对超大 `nodesById` 做频繁深层 mutation。
 
-### 11.2 动态属性
+### 12.2 动态属性
 
 Vue2 对新增对象属性不自动响应，需要使用：
 
@@ -743,7 +877,7 @@ this.$set(target, key, value)
 
 但本项目更推荐 command 返回新对象引用，减少直接深层 mutation。
 
-### 11.3 G6 版本选择
+### 12.3 G6 版本选择
 
 Vue2 可以配：
 
@@ -754,7 +888,7 @@ Vue2 可以配：
 
 如果是老 Vue2 项目，G6 4.x 集成成本可能更低；如果是新功能且允许升级，G6 5.x 的能力更完整，但迁移成本更高。
 
-### 11.4 表头锁定
+### 12.4 表头锁定
 
 Vue2 中同样可以使用 DOM overlay 表头：
 
@@ -767,7 +901,7 @@ Vue2 DOM 负责固定表头
 
 这部分不依赖 Vue3。
 
-### 11.5 性能注意点
+### 12.5 性能注意点
 
 Vue2 下更需要避免：
 
@@ -785,7 +919,7 @@ Vue 只响应 selectedNodeId、columns、visibleNodeIds、storeVersion 等轻量
 G6 只渲染当前可见节点
 ```
 
-## 12. 结论
+## 13. 结论
 
 Vue2 + G6 可以实现相同效果。
 
