@@ -9,10 +9,18 @@
           :style="{
             transform: `translateX(${header.left}px)`,
             width: `${header.width}px`,
+            borderLeftColor: header.typeColor,
           }"
         >
-          <span>{{ header.title }}</span>
-          <small>{{ header.type }} · {{ Math.round(header.sourceWidth) }}px</small>
+          <div class="graph-column-header__title">
+            <span
+              class="graph-column-header__type-dot"
+              :style="{ background: header.typeColor }"
+              :title="header.type"
+            />
+            <span :title="header.title">{{ header.title }}</span>
+          </div>
+          <small :title="`${header.type} · ${Math.round(header.sourceWidth)}px`">{{ header.type }} · {{ Math.round(header.sourceWidth) }}px</small>
           <button
             class="graph-column-resizer"
             type="button"
@@ -31,6 +39,7 @@ import { Graph } from '@antv/g6'
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import type { TableTreeColumn, TableTreeLayout } from '../types/table-tree'
 import { toG6Data } from '../graph/g6Adapter'
+import { getNodeFill, getNodeStroke, getNodeShadow, getNodeTypeStyle, getNodeLabelFill } from '../graph/style'
 
 const props = defineProps<{
   layout: TableTreeLayout
@@ -47,7 +56,16 @@ const emit = defineEmits<{
 const containerRef = ref<HTMLDivElement>()
 const graphRef = shallowRef<any>()
 const headerViews = ref<
-  Array<{ id: string; columnId: string; title: string; type: string; left: number; width: number; sourceWidth: number }>
+  Array<{
+    id: string
+    columnId: string
+    title: string
+    type: string
+    typeColor: string
+    left: number
+    width: number
+    sourceWidth: number
+  }>
 >([])
 let resizeObserver: ResizeObserver | undefined
 let syncFrame = 0
@@ -78,6 +96,7 @@ const syncHeader = () => {
       columnId: header.columnId,
       title: header.title,
       type: header.type,
+      typeColor: getNodeTypeStyle(header.type).fill,
       left: header.x - header.width / 2,
       width: header.width,
       sourceWidth: header.width,
@@ -94,6 +113,7 @@ const syncHeader = () => {
       columnId: header.columnId,
       title: header.title,
       type: header.type,
+      typeColor: getNodeTypeStyle(header.type).fill,
       left,
       width: header.width * zoom,
       sourceWidth: header.width,
@@ -169,29 +189,39 @@ onMounted(async () => {
     node: {
       type: 'rect',
       style: {
-        radius: 6,
-        fill: (datum: any) => (datum.data?.selected ? '#0f2742' : '#ffffff'),
-        stroke: (datum: any) => (datum.data?.selected ? '#1d4ed8' : '#cbd5e1'),
-        lineWidth: (datum: any) => (datum.data?.selected ? 2.2 : 1),
-        shadowColor: (datum: any) => (datum.data?.selected ? 'rgba(29, 78, 216, 0.22)' : 'rgba(15, 23, 42, 0.08)'),
+        radius: 8,
+        fill: (datum: any) => getNodeFill(datum.data?.type, Boolean(datum.data?.selected), false),
+        stroke: (datum: any) => getNodeStroke(datum.data?.type, Boolean(datum.data?.selected), false),
+        lineWidth: (datum: any) => (datum.data?.selected ? 2.2 : 1.2),
+        shadowColor: (datum: any) => getNodeShadow(datum.data?.type, Boolean(datum.data?.selected)),
         shadowBlur: (datum: any) => (datum.data?.selected ? 16 : 10),
         shadowOffsetY: 4,
         labelText: (datum: any) => {
           const content = datum.data?.content ? `\n${datum.data.content}` : ''
           return `${datum.data?.label ?? datum.id}${content}`
         },
-        labelFill: (datum: any) => (datum.data?.selected ? '#ffffff' : '#172033'),
+        labelFill: (datum: any) => getNodeLabelFill(datum.data?.type, Boolean(datum.data?.selected)),
         labelFontSize: 13,
-        labelFontWeight: 600,
+        labelFontWeight: 700,
         labelWordWrap: true,
         labelMaxWidth: '90%',
         badge: true,
-        badgeText: (datum: any) => (datum.data?.hasChildren ? (datum.data?.collapsed ? '+' : '-') : ''),
+        badgeText: (datum: any) => (datum.data?.hasChildren ? (datum.data?.collapsed ? '▸' : '▾') : ''),
         badgePlacement: 'right',
-        badgeFill: (datum: any) => (datum.data?.selected ? '#dbeafe' : '#f8fafc'),
-        badgeStroke: '#bfdbfe',
-        badgeTextFill: '#1d4ed8',
+        badgeFill: (datum: any) => getNodeTypeStyle(datum.data?.type).badgeFill,
+        badgeStroke: (datum: any) => getNodeTypeStyle(datum.data?.type).badgeStroke,
+        badgeTextFill: (datum: any) => getNodeTypeStyle(datum.data?.type).badgeText,
+        badgeFontSize: 11,
+        badgeFontWeight: 800,
         ports: [{ key: 'left', placement: 'left' }, { key: 'right', placement: 'right' }],
+      },
+      state: {
+        hover: {
+          fill: (datum: any) => getNodeFill(datum.data?.type, Boolean(datum.data?.selected), true),
+          stroke: (datum: any) => getNodeStroke(datum.data?.type, Boolean(datum.data?.selected), true),
+          lineWidth: 1.8,
+          shadowBlur: 14,
+        },
       },
     },
     edge: {
@@ -199,7 +229,7 @@ onMounted(async () => {
       style: {
         stroke: (datum: any) => (datum.data?.reversed ? '#f97316' : '#94a3b8'),
         lineWidth: 1.35,
-        opacity: 0.82,
+        opacity: 0.9,
         lineDash: (datum: any) => (datum.data?.reversed ? [5, 4] : undefined),
         endArrow: false,
         radius: 10,
@@ -220,6 +250,16 @@ onMounted(async () => {
   graphRef.value.on?.('node:dblclick', (event: any) => {
     const nodeId = getNodeIdFromEvent(event)
     if (nodeId && isTreeNode(nodeId)) emit('nodeDoubleClick', nodeId)
+  })
+
+  graphRef.value.on?.('node:mouseenter', (event: any) => {
+    const nodeId = getNodeIdFromEvent(event)
+    if (nodeId && isTreeNode(nodeId)) void graphRef.value?.setElementState?.(nodeId, 'hover')
+  })
+
+  graphRef.value.on?.('node:mouseleave', (event: any) => {
+    const nodeId = getNodeIdFromEvent(event)
+    if (nodeId && isTreeNode(nodeId)) void graphRef.value?.setElementState?.(nodeId, [])
   })
 
   graphRef.value.on?.('aftertransform', scheduleHeaderSync)
@@ -252,6 +292,8 @@ onBeforeUnmount(() => {
   graphRef.value?.off?.('aftertransform', scheduleHeaderSync)
   graphRef.value?.off?.('canvas:drag', scheduleHeaderSync)
   graphRef.value?.off?.('canvas:wheel', scheduleHeaderSync)
+  graphRef.value?.off?.('node:mouseenter')
+  graphRef.value?.off?.('node:mouseleave')
   graphRef.value?.destroy?.()
 })
 </script>

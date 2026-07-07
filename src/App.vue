@@ -4,21 +4,72 @@
       <section class="panel">
         <div class="panel-title">
           <h2>列配置</h2>
-          <button class="primary" type="button" @click="addColumn">新增列</button>
+          <button class="primary" type="button" @click="addColumn">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            新增列
+          </button>
         </div>
         <div class="column-list">
-          <article v-for="column in orderedColumns" :key="column.id" class="column-item" :class="{ muted: !column.visible }">
-            <div>
-              <strong>{{ column.title }}</strong>
-              <small>{{ column.type }}</small>
+          <article
+            v-for="column in orderedColumns"
+            :key="column.id"
+            class="column-item"
+            :class="{ muted: !column.visible }"
+          >
+            <div class="column-item-header">
+              <span
+                class="column-type-dot"
+                :style="{ background: getNodeTypeStyle(column.type).fill }"
+                :title="column.type"
+              />
+              <div>
+                <strong>{{ column.title }}</strong>
+                <small>{{ column.type }}</small>
+              </div>
             </div>
             <div class="button-row">
-              <button type="button" @click="moveColumn(column.id, -1)">←</button>
-              <button type="button" @click="moveColumn(column.id, 1)">→</button>
-              <button type="button" @click="resizeColumn(column.id, -20)">窄</button>
-              <button type="button" @click="resizeColumn(column.id, 20)">宽</button>
-              <button v-if="column.visible" type="button" @click="hideColumn(column.id)">隐藏</button>
-              <button v-else type="button" @click="showColumn(column.id)">显示</button>
+              <div class="btn-group">
+                <button type="button" title="左移" @click="moveColumn(column.id, -1)">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                  </svg>
+                </button>
+                <button type="button" title="右移" @click="moveColumn(column.id, 1)">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                  </svg>
+                </button>
+              </div>
+              <div class="btn-group">
+                <button type="button" title="变窄" @click="resizeColumn(column.id, -20)">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                  </svg>
+                </button>
+                <button type="button" title="变宽" @click="resizeColumn(column.id, 20)">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 12h14M12 5v14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                  </svg>
+                </button>
+              </div>
+              <button
+                v-if="column.visible"
+                type="button"
+                title="隐藏列"
+                @click="hideColumn(column.id)"
+              >
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                </svg>
+              </button>
+              <button v-else type="button" title="显示列" @click="showColumn(column.id)">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                  <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" fill="none" />
+                </svg>
+              </button>
             </div>
           </article>
         </div>
@@ -30,57 +81,138 @@
           <span class="tag">{{ selectedNode?.label ?? '未选中' }}</span>
         </div>
 
-        <label>
-          节点名称
-          <input v-model="draftLabel" type="text" />
-        </label>
-
-        <label>
-          节点内容
-          <textarea v-model="draftContent" rows="4"></textarea>
-        </label>
-
-        <label>
-          节点类型
-          <select v-model="draftType">
-            <option v-for="column in orderedColumns" :key="column.id" :value="column.type">
-              {{ column.title }} / {{ column.type }}
-            </option>
-          </select>
-        </label>
-
-        <div class="button-grid">
-          <button class="primary" type="button" :disabled="!selectedNode" @click="renameSelected">更新节点</button>
-          <button type="button" :disabled="!selectedNode" @click="addChild">新增子节点</button>
-          <button type="button" :disabled="!selectedNode" @click="toggleSelected">展开/折叠</button>
-          <button class="danger" type="button" :disabled="!selectedNode || isSelectedRoot" @click="removeSelected">删除子树</button>
-          <button class="danger" type="button" :disabled="!selectedNode || isSelectedRoot" @click="removeSelectedPath">删除路径</button>
+        <div v-if="!selectedNode" class="empty-state">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path d="M3 9h18M9 21V9" />
+          </svg>
+          在画布中点击节点以编辑
         </div>
 
-        <label>
-          移动到父节点
-          <select v-model="targetParentId">
-            <option v-for="node in parentCandidates" :key="node.id" :value="node.id">
-              {{ node.label }}
-            </option>
-          </select>
-          <small v-if="parentCandidateOverflow" class="field-note">仅显示前 200 个候选父节点，请先折叠或选中附近节点后再移动。</small>
-        </label>
-        <button type="button" :disabled="!selectedNode" @click="moveSelected">移动节点</button>
+        <template v-else>
+          <div class="panel-section">
+            <span class="panel-section-title">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+              </svg>
+              基本信息
+            </span>
+            <label>
+              节点名称
+              <input v-model="draftLabel" type="text" />
+            </label>
+            <label>
+              节点类型
+              <select v-model="draftType">
+                <option v-for="column in orderedColumns" :key="column.id" :value="column.type">
+                  {{ column.title }} / {{ column.type }}
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <div class="panel-section">
+            <span class="panel-section-title">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                <polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+              节点内容
+            </span>
+            <label>
+              内容说明
+              <textarea v-model="draftContent" rows="4" />
+            </label>
+          </div>
+
+          <div class="panel-section">
+            <span class="panel-section-title">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 2v20M2 12h20" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+              操作
+            </span>
+            <div class="button-grid">
+              <button class="primary" type="button" :disabled="!selectedNode" @click="renameSelected">
+                更新节点
+              </button>
+              <button type="button" :disabled="!selectedNode" @click="addChild">
+                新增子节点
+              </button>
+              <button type="button" :disabled="!selectedNode" @click="toggleSelected">
+                展开/折叠
+              </button>
+            </div>
+          </div>
+
+          <div class="panel-section">
+            <span class="panel-section-title">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+              危险操作
+            </span>
+            <div class="button-grid">
+              <button class="danger" type="button" :disabled="!selectedNode || isSelectedRoot" @click="removeSelected">
+                删除子树
+              </button>
+              <button class="danger" type="button" :disabled="!selectedNode || isSelectedRoot" @click="removeSelectedPath">
+                删除路径
+              </button>
+            </div>
+          </div>
+
+          <div class="panel-section">
+            <span class="panel-section-title">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 9l7 7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+              </svg>
+              移动节点
+            </span>
+            <label>
+              目标父节点
+              <select v-model="targetParentId">
+                <option v-for="node in parentCandidates" :key="node.id" :value="node.id">
+                  {{ node.label }}
+                </option>
+              </select>
+              <small v-if="parentCandidateOverflow" class="field-note">
+                仅显示前 200 个候选父节点，请先折叠或选中附近节点后再移动。
+              </small>
+            </label>
+            <button type="button" :disabled="!selectedNode" @click="moveSelected">
+              移动节点
+            </button>
+          </div>
+
+          <div class="panel-section">
+            <p class="field-note">
+              快捷键：
+              <kbd class="kbd">Space</kbd> 展开/折叠，
+              <kbd class="kbd">Delete</kbd> 删除路径，
+              <kbd class="kbd">Esc</kbd> 取消选择
+            </p>
+          </div>
+        </template>
       </section>
 
       <section class="panel compact">
         <h2>当前规模</h2>
         <dl>
-          <div>
+          <div class="stat-card--total">
             <dt>总节点</dt>
             <dd>{{ stats.totalNodes }}</dd>
           </div>
-          <div>
+          <div class="stat-card--visible">
             <dt>可见节点</dt>
             <dd>{{ stats.visibleNodes }}</dd>
           </div>
-          <div>
+          <div class="stat-card--edges">
             <dt>可见边</dt>
             <dd>{{ stats.visibleEdges }}</dd>
           </div>
@@ -90,31 +222,48 @@
 
     <section class="workspace">
       <div class="toolbar">
-        <div>
+        <div class="toolbar-brand">
           <h1>类表格树结构编辑器</h1>
           <p>父子关系独立保存，横向位置始终按照当前列顺序重新排列。</p>
         </div>
         <div class="toolbar-actions">
-          <div class="segmented-control" aria-label="布局模式">
-            <button
-              type="button"
-              :class="{ active: layoutMode === 'table' }"
-              @click="layoutMode = 'table'"
-            >
-              列式布局
+          <div class="toolbar-group">
+            <label>布局</label>
+            <div class="segmented-control" aria-label="布局模式">
+              <button
+                type="button"
+                :class="{ active: layoutMode === 'table' }"
+                @click="layoutMode = 'table'"
+              >
+                列式布局
+              </button>
+              <button
+                type="button"
+                :class="{ active: layoutMode === 'ecological' }"
+                @click="layoutMode = 'ecological'"
+              >
+                生态树辅助
+              </button>
+            </div>
+          </div>
+
+          <div class="toolbar-group">
+            <button class="toolbar-btn" type="button" :disabled="isExporting" title="导出图片 (Ctrl/Cmd + E)" @click="exportImage">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                <polyline points="7 10 12 15 17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              {{ isExporting ? '导出中...' : '导出图片' }}
             </button>
-            <button
-              type="button"
-              :class="{ active: layoutMode === 'ecological' }"
-              @click="layoutMode = 'ecological'"
-            >
-              生态树辅助
+            <button class="toolbar-btn" type="button" title="生成 2000 节点样例 (Ctrl/Cmd + G)" @click="generateLargeData">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2" fill="none" />
+                <path d="M3 9h18M9 21V9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+              </svg>
+              生成 2000 节点样例
             </button>
           </div>
-          <button type="button" :disabled="isExporting" @click="exportImage">
-            {{ isExporting ? '导出中...' : '导出图片' }}
-          </button>
-          <button type="button" @click="generateLargeData">生成 2000 节点样例</button>
         </div>
       </div>
 
@@ -131,13 +280,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, shallowRef, ref, watch } from 'vue'
+import { computed, shallowRef, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import TableTreeGraph from './components/TableTreeGraph.vue'
 import { downloadTableTreeImage } from './graph/exportImage'
 import { buildTableTreeLayout } from './graph/layout'
 import { tableTreeCommands } from './graph/treeCommands'
 import { getVisibleNodes, getVisibleStats } from './graph/visible'
 import { createInitialStore } from './mock/table-tree-data'
+import { getNodeTypeStyle } from './graph/style'
 import type { TableTreeLayoutMode, TableTreeStore } from './types/table-tree'
 
 const store = shallowRef<TableTreeStore>(createInitialStore())
@@ -215,6 +365,7 @@ const toggleNode = (nodeId: string) => {
   apply(tableTreeCommands.toggleCollapse(store.value, nodeId))
 }
 const toggleSelected = () => selectedNode.value && toggleNode(selectedNode.value.id)
+const deselect = () => apply({ ...store.value, selectedNodeId: undefined })
 
 const renameSelected = () => {
   if (!selectedNode.value) return
@@ -349,4 +500,65 @@ const generateLargeData = () => {
   next.selectedNodeId = 'bulk-root'
   apply(next)
 }
+
+const isTypingTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false
+  const tag = target.tagName.toLowerCase()
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable
+}
+
+const onKeyDown = (event: KeyboardEvent) => {
+  if (isTypingTarget(event.target)) return
+
+  const isMeta = event.ctrlKey || event.metaKey
+
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    deselect()
+    return
+  }
+
+  if (event.key === ' ' && selectedNode.value) {
+    event.preventDefault()
+    toggleSelected()
+    return
+  }
+
+  if ((event.key === 'Delete' || event.key === 'Backspace') && selectedNode.value && !isSelectedRoot.value) {
+    event.preventDefault()
+    removeSelectedPath()
+    return
+  }
+
+  if (isMeta && event.key.toLowerCase() === 'e') {
+    event.preventDefault()
+    exportImage()
+    return
+  }
+
+  if (isMeta && event.key.toLowerCase() === 'g') {
+    event.preventDefault()
+    generateLargeData()
+    return
+  }
+
+  if (isMeta && event.key === '1') {
+    event.preventDefault()
+    layoutMode.value = 'table'
+    return
+  }
+
+  if (isMeta && event.key === '2') {
+    event.preventDefault()
+    layoutMode.value = 'ecological'
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeyDown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeyDown)
+})
 </script>

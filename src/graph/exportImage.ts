@@ -1,12 +1,14 @@
 import type { LayoutEdge, LayoutNode, TableTreeLayout } from '../types/table-tree'
+import { getNodeFill, getNodeStroke, getNodeShadow, getNodeTypeStyle, getNodeLabelFill } from './style'
 
 const EXPORT_PADDING = 28
 const MAX_EXPORT_SIDE = 16384
 const MAX_EXPORT_AREA = 64_000_000
 const MIN_EXPORT_SCALE = 0.08
 
-const NODE_RADIUS = 7
+const NODE_RADIUS = 8
 const HEADER_RADIUS = 8
+const ACCENT_BAR_WIDTH = 4
 
 const getExportScale = (width: number, height: number) => {
   const deviceScale = Math.min(window.devicePixelRatio || 1, 2)
@@ -70,10 +72,11 @@ const getNodeBounds = (node: LayoutNode) => ({
 const drawColumns = (context: CanvasRenderingContext2D, layout: TableTreeLayout, height: number, offsetX: number, offsetY: number) => {
   layout.columnHeaders.forEach((header, index) => {
     const left = offsetX + header.x - header.width / 2
+    const style = getNodeTypeStyle(header.type)
     context.fillStyle = index % 2 === 0 ? '#f8fafc' : '#f1f5f9'
     context.fillRect(left, offsetY, header.width, height)
 
-    context.strokeStyle = '#e2e8f0'
+    context.strokeStyle = `${style.fill}33`
     context.lineWidth = 1
     context.beginPath()
     context.moveTo(left + header.width, offsetY)
@@ -86,23 +89,29 @@ const drawHeaders = (context: CanvasRenderingContext2D, layout: TableTreeLayout,
   layout.columnHeaders.forEach((header) => {
     const left = offsetX + header.x - header.width / 2
     const top = offsetY + header.y - header.height / 2
+    const style = getNodeTypeStyle(header.type)
 
     context.fillStyle = '#ffffff'
     roundedRect(context, left, top, header.width, header.height, HEADER_RADIUS)
     context.fill()
 
-    context.strokeStyle = '#cbd5e1'
+    context.strokeStyle = style.stroke
     context.lineWidth = 1
     context.stroke()
 
+    context.fillStyle = style.fill
+    const accentHeight = header.height - 12
+    roundedRect(context, left, top + 6, ACCENT_BAR_WIDTH, accentHeight, 2)
+    context.fill()
+
     context.fillStyle = '#0f172a'
-    context.font = '600 14px Inter, Arial, sans-serif'
+    context.font = '800 13px Inter, Arial, sans-serif'
     context.textBaseline = 'top'
     drawWrappedText(context, header.title, left + 14, top + 8, header.width - 28, 16, 1)
 
-    context.fillStyle = '#64748b'
-    context.font = '11px Inter, Arial, sans-serif'
-    drawWrappedText(context, header.type, left + 14, top + 25, header.width - 28, 13, 1)
+    context.fillStyle = style.mutedText
+    context.font = '700 11px Inter, Arial, sans-serif'
+    drawWrappedText(context, `${header.type} · ${Math.round(header.width)}px`, left + 14, top + 25, header.width - 28, 13, 1)
   })
 }
 
@@ -126,7 +135,7 @@ const drawEdge = (
   context.save()
   context.strokeStyle = edge.reversed ? '#f97316' : '#94a3b8'
   context.lineWidth = 1.5
-  context.globalAlpha = 0.88
+  context.globalAlpha = 0.9
   if (edge.reversed) context.setLineDash([6, 5])
   context.beginPath()
   points.forEach(([x, y], index) => {
@@ -147,51 +156,58 @@ const drawNode = (
   offsetY: number,
 ) => {
   const selected = node.id === selectedNodeId
+  const style = getNodeTypeStyle(node.type)
   const bounds = getNodeBounds(node)
   const left = offsetX + bounds.left
   const top = offsetY + bounds.top
 
   context.save()
-  context.shadowColor = selected ? 'rgba(29, 78, 216, 0.22)' : 'rgba(15, 23, 42, 0.08)'
+  context.shadowColor = getNodeShadow(node.type, selected)
   context.shadowBlur = selected ? 16 : 10
   context.shadowOffsetY = 4
-  context.fillStyle = selected ? '#0f2742' : '#ffffff'
+  context.fillStyle = getNodeFill(node.type, selected, false)
   roundedRect(context, left, top, node.width, node.height, NODE_RADIUS)
   context.fill()
   context.restore()
 
-  context.strokeStyle = selected ? '#1d4ed8' : '#cbd5e1'
-  context.lineWidth = selected ? 2 : 1
+  context.strokeStyle = getNodeStroke(node.type, selected, false)
+  context.lineWidth = selected ? 2.2 : 1.2
   roundedRect(context, left, top, node.width, node.height, NODE_RADIUS)
   context.stroke()
 
-  context.fillStyle = selected ? '#ffffff' : '#172033'
-  context.font = '600 13px Inter, Arial, sans-serif'
+  context.fillStyle = style.fill
+  const accentHeight = node.height - 12
+  roundedRect(context, left + 5, top + 6, ACCENT_BAR_WIDTH, accentHeight, 2)
+  context.fill()
+
+  context.fillStyle = getNodeLabelFill(node.type, selected)
+  context.font = '700 13px Inter, Arial, sans-serif'
   context.textBaseline = 'top'
-  drawWrappedText(context, node.label, left + 14, top + 10, node.width - 28, 16, 1)
+  drawWrappedText(context, node.label, left + 16, top + 10, node.width - 30, 16, 1)
 
   if (node.content) {
-    context.fillStyle = selected ? '#dbeafe' : '#64748b'
-    context.font = '12px Inter, Arial, sans-serif'
-    drawWrappedText(context, node.content, left + 14, top + 29, node.width - 28, 15, 1)
+    context.fillStyle = style.mutedText
+    context.font = '500 12px Inter, Arial, sans-serif'
+    drawWrappedText(context, node.content, left + 16, top + 29, node.width - 30, 15, 1)
   }
 
   if (node.childrenIds.length > 0) {
     const badgeSize = 18
-    const badgeX = left + node.width - badgeSize / 2 - 4
+    const badgeX = left + node.width - badgeSize / 2 - 5
     const badgeY = top + node.height / 2
-    context.fillStyle = selected ? '#dbeafe' : '#f8fafc'
-    context.strokeStyle = '#bfdbfe'
+    context.fillStyle = style.badgeFill
+    context.strokeStyle = style.badgeStroke
+    context.lineWidth = 1
     context.beginPath()
     context.arc(badgeX, badgeY, badgeSize / 2, 0, Math.PI * 2)
     context.fill()
     context.stroke()
 
-    context.fillStyle = '#1d4ed8'
-    context.font = '700 12px Inter, Arial, sans-serif'
+    context.fillStyle = style.badgeText
+    context.font = '800 11px Inter, Arial, sans-serif'
     context.textAlign = 'center'
     context.textBaseline = 'middle'
-    context.fillText(node.collapsed ? '+' : '-', badgeX, badgeY)
+    context.fillText(node.collapsed ? '▸' : '▾', badgeX, badgeY)
     context.textAlign = 'start'
   }
 }
