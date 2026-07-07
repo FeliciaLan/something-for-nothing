@@ -39,7 +39,14 @@ import { Graph } from '@antv/g6'
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import type { TableTreeColumn, TableTreeLayout } from '../types/table-tree'
 import { toG6Data } from '../graph/g6Adapter'
-import { getNodeFill, getNodeStroke, getNodeShadow, getNodeTypeStyle, getNodeLabelFill } from '../graph/style'
+import {
+  getNodeFill,
+  getNodeLabelFill,
+  getNodeShadow,
+  getNodeStroke,
+  getNodeTypeStyle,
+  hexToRgba,
+} from '../graph/style'
 
 const props = defineProps<{
   layout: TableTreeLayout
@@ -50,6 +57,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   nodeClick: [nodeId: string]
   nodeDoubleClick: [nodeId: string]
+  nodeMove: [nodeId: string, y: number]
   columnResize: [columnId: string, width: number]
 }>()
 
@@ -86,6 +94,10 @@ const getNodeIdFromEvent = (event: any) => {
 }
 
 const isTreeNode = (nodeId: string) => !nodeId.startsWith('column-header-')
+const getDatumWidth = (datum: any) => {
+  const size = datum.style?.size
+  return Array.isArray(size) ? Number(size[0]) : 180
+}
 
 const syncHeader = () => {
   syncFrame = 0
@@ -178,6 +190,14 @@ const renderGraph = async () => {
   scheduleHeaderSync()
 }
 
+const finishNodeDrag = (ids: string[]) => {
+  const nodeId = ids.find((id) => isTreeNode(id))
+  if (!nodeId) return
+  const position = graphRef.value?.getElementPosition?.(nodeId)
+  const y = Array.isArray(position) ? position[1] : position?.y
+  if (Number.isFinite(y)) emit('nodeMove', nodeId, y)
+}
+
 onMounted(async () => {
   if (!containerRef.value) return
 
@@ -203,16 +223,54 @@ onMounted(async () => {
         labelFill: (datum: any) => getNodeLabelFill(datum.data?.type, Boolean(datum.data?.selected)),
         labelFontSize: 13,
         labelFontWeight: 700,
+        labelLineHeight: 18,
+        labelTextAlign: 'left',
+        labelPlacement: 'center',
+        labelOffsetX: (datum: any) => -getDatumWidth(datum) / 2 + 58,
         labelWordWrap: true,
-        labelMaxWidth: '90%',
+        labelMaxWidth: (datum: any) => Math.max(getDatumWidth(datum) - 112, 80),
+        icon: true,
+        iconText: (datum: any) => getNodeTypeStyle(datum.data?.type).icon,
+        iconFill: (datum: any) => hexToRgba(getNodeTypeStyle(datum.data?.type).fill, 0.18),
+        iconFontSize: 28,
+        iconFontWeight: 900,
+        iconX: (datum: any) => -getDatumWidth(datum) / 2 + 22,
+        iconY: 0,
         badge: true,
-        badgeText: (datum: any) => (datum.data?.hasChildren ? (datum.data?.collapsed ? '▸' : '▾') : ''),
-        badgePlacement: 'right',
-        badgeFill: (datum: any) => getNodeTypeStyle(datum.data?.type).badgeFill,
-        badgeStroke: (datum: any) => getNodeTypeStyle(datum.data?.type).badgeStroke,
-        badgeTextFill: (datum: any) => getNodeTypeStyle(datum.data?.type).badgeText,
-        badgeFontSize: 11,
-        badgeFontWeight: 800,
+        badges: (datum: any) => {
+          const style = getNodeTypeStyle(datum.data?.type)
+          const badges: any[] = [
+            {
+              text: style.title,
+              placement: 'right-top' as const,
+              offsetX: -10,
+              offsetY: 8,
+              backgroundFill: style.badgeFill,
+              backgroundStroke: style.badgeStroke,
+              fill: style.badgeText,
+              fontSize: 10,
+              fontWeight: 800,
+              padding: [3, 6] as [number, number],
+            },
+          ]
+
+          if (datum.data?.hasChildren) {
+            badges.push({
+              text: datum.data?.collapsed ? '▸' : '▾',
+              placement: 'right' as const,
+              offsetX: -8,
+              offsetY: 0,
+              backgroundFill: style.badgeFill,
+              backgroundStroke: style.badgeStroke,
+              fill: style.badgeText,
+              fontSize: 11,
+              fontWeight: 900,
+              padding: [3, 6] as [number, number],
+            })
+          }
+
+          return badges
+        },
         ports: [{ key: 'left', placement: 'left' }, { key: 'right', placement: 'right' }],
       },
       state: {
@@ -239,7 +297,25 @@ onMounted(async () => {
         },
       },
     },
-    behaviors: ['drag-canvas', 'zoom-canvas'],
+    behaviors: [
+      {
+        type: 'drag-canvas',
+        enable: (event: any) => event?.targetType === 'canvas',
+      },
+      'zoom-canvas',
+      {
+        type: 'drag-element',
+        dropEffect: 'none',
+        hideEdge: 'none',
+        shadow: false,
+        enable: (event: any) => event?.targetType === 'node' && isTreeNode(getNodeIdFromEvent(event) ?? ''),
+        cursor: {
+          grab: 'grab',
+          grabbing: 'grabbing',
+        },
+        onFinish: finishNodeDrag,
+      },
+    ],
   })
 
   graphRef.value.on?.('node:click', (event: any) => {

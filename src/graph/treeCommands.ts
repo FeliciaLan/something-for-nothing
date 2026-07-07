@@ -210,6 +210,14 @@ export const tableTreeCommands = {
     return next
   },
 
+  updateNodeManualY(store: TableTreeStore, nodeId: string, y: number): TableTreeStore {
+    const next = cloneStore(store)
+    if (!next.nodesById[nodeId]) return store
+    next.nodesById[nodeId].manualY = Math.max(82, y)
+    next.selectedNodeId = nodeId
+    return next
+  },
+
   toggleCollapse(store: TableTreeStore, nodeId: string): TableTreeStore {
     const next = cloneStore(store)
     if (!next.nodesById[nodeId]) return store

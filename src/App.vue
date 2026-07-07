@@ -256,6 +256,19 @@
               </svg>
               {{ isExporting ? '导出中...' : '导出图片' }}
             </button>
+            <button class="toolbar-btn" type="button" :disabled="isExporting" title="全展开导出完整图片 (Ctrl/Cmd + Shift + E)" @click="exportExpandedImage">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none" />
+                <path d="M10 7h4M7 10v4M17 10v4M10 17h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
+              </svg>
+              全展开导出
+            </button>
+            <button class="toolbar-btn" type="button" :disabled="isExporting" title="导出 SVG 矢量图" @click="exportSvg">
+              SVG
+            </button>
+            <button class="toolbar-btn" type="button" :disabled="isExporting" title="全展开导出 SVG 矢量图" @click="exportExpandedSvg">
+              全展开 SVG
+            </button>
             <button class="toolbar-btn" type="button" title="生成 2000 节点样例 (Ctrl/Cmd + G)" @click="generateLargeData">
               <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                 <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2" fill="none" />
@@ -273,6 +286,7 @@
         :selected-node-id="store.selectedNodeId"
         @node-click="selectNode"
         @node-double-click="toggleNode"
+        @node-move="moveNodePosition"
         @column-resize="setColumnWidth"
       />
     </section>
@@ -282,7 +296,7 @@
 <script setup lang="ts">
 import { computed, shallowRef, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import TableTreeGraph from './components/TableTreeGraph.vue'
-import { downloadTableTreeImage } from './graph/exportImage'
+import { downloadTableTreeImage, downloadTableTreeSvg } from './graph/exportImage'
 import { buildTableTreeLayout } from './graph/layout'
 import { tableTreeCommands } from './graph/treeCommands'
 import { getVisibleNodes, getVisibleStats } from './graph/visible'
@@ -343,6 +357,7 @@ const setColumnWidth = (columnId: string, width: number) => {
 }
 
 const selectNode = (nodeId: string) => apply(tableTreeCommands.selectNode(store.value, nodeId))
+const moveNodePosition = (nodeId: string, y: number) => apply(tableTreeCommands.updateNodeManualY(store.value, nodeId, y))
 const countExpandedSubtree = (nodeId: string): number => {
   const node = store.value.nodesById[nodeId]
   if (!node) return 0
@@ -401,6 +416,23 @@ const moveSelected = () => {
   apply(tableTreeCommands.moveNode(store.value, selectedNode.value.id, targetParentId.value || undefined))
 }
 
+const createExpandedExportStore = (): TableTreeStore => ({
+  ...store.value,
+  selectedNodeId: undefined,
+  columns: store.value.columns.map((column) => ({ ...column })),
+  nodesById: Object.fromEntries(
+    Object.entries(store.value.nodesById).map(([id, node]) => [
+      id,
+      {
+        ...node,
+        childrenIds: [...node.childrenIds],
+        collapsed: false,
+      },
+    ]),
+  ),
+  rootIds: [...store.value.rootIds],
+})
+
 const exportImage = async () => {
   if (isExporting.value) return
   isExporting.value = true
@@ -408,6 +440,46 @@ const exportImage = async () => {
     await downloadTableTreeImage(layout.value, store.value.selectedNodeId)
   } catch (error) {
     window.alert(error instanceof Error ? error.message : '图片导出失败。')
+  } finally {
+    isExporting.value = false
+  }
+}
+
+const exportExpandedImage = async () => {
+  if (isExporting.value) return
+  isExporting.value = true
+  try {
+    const expandedStore = createExpandedExportStore()
+    const expandedLayout = buildTableTreeLayout(expandedStore, layoutMode.value)
+    await downloadTableTreeImage(expandedLayout, undefined, `table-tree-expanded-${new Date().toISOString().slice(0, 10)}.png`)
+  } catch (error) {
+    window.alert(error instanceof Error ? error.message : '全展开图片导出失败。')
+  } finally {
+    isExporting.value = false
+  }
+}
+
+const exportSvg = () => {
+  if (isExporting.value) return
+  isExporting.value = true
+  try {
+    downloadTableTreeSvg(layout.value, store.value.selectedNodeId)
+  } catch (error) {
+    window.alert(error instanceof Error ? error.message : 'SVG 导出失败。')
+  } finally {
+    isExporting.value = false
+  }
+}
+
+const exportExpandedSvg = () => {
+  if (isExporting.value) return
+  isExporting.value = true
+  try {
+    const expandedStore = createExpandedExportStore()
+    const expandedLayout = buildTableTreeLayout(expandedStore, layoutMode.value)
+    downloadTableTreeSvg(expandedLayout, undefined, `table-tree-expanded-${new Date().toISOString().slice(0, 10)}.svg`)
+  } catch (error) {
+    window.alert(error instanceof Error ? error.message : '全展开 SVG 导出失败。')
   } finally {
     isExporting.value = false
   }
@@ -532,7 +604,8 @@ const onKeyDown = (event: KeyboardEvent) => {
 
   if (isMeta && event.key.toLowerCase() === 'e') {
     event.preventDefault()
-    exportImage()
+    if (event.shiftKey) exportExpandedImage()
+    else exportImage()
     return
   }
 

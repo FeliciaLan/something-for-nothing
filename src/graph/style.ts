@@ -1,4 +1,6 @@
 export interface NodeTypeStyle {
+  icon: string
+  title: string
   fill: string
   softFill: string
   hoverFill: string
@@ -13,6 +15,8 @@ export interface NodeTypeStyle {
 
 export const NODE_TYPE_STYLES: Record<string, NodeTypeStyle> = {
   domain: {
+    icon: '◆',
+    title: '领域',
     fill: '#1d4ed8',
     softFill: '#eff6ff',
     hoverFill: '#dbeafe',
@@ -25,6 +29,8 @@ export const NODE_TYPE_STYLES: Record<string, NodeTypeStyle> = {
     badgeText: '#1d4ed8',
   },
   system: {
+    icon: '◈',
+    title: '系统',
     fill: '#7c3aed',
     softFill: '#f5f3ff',
     hoverFill: '#ede9fe',
@@ -37,6 +43,8 @@ export const NODE_TYPE_STYLES: Record<string, NodeTypeStyle> = {
     badgeText: '#7c3aed',
   },
   module: {
+    icon: '▣',
+    title: '模块',
     fill: '#0f766e',
     softFill: '#f0fdfa',
     hoverFill: '#ccfbf1',
@@ -49,6 +57,8 @@ export const NODE_TYPE_STYLES: Record<string, NodeTypeStyle> = {
     badgeText: '#0f766e',
   },
   page: {
+    icon: '▤',
+    title: '页面',
     fill: '#ea580c',
     softFill: '#fff7ed',
     hoverFill: '#ffedd5',
@@ -61,6 +71,8 @@ export const NODE_TYPE_STYLES: Record<string, NodeTypeStyle> = {
     badgeText: '#ea580c',
   },
   api: {
+    icon: '⌁',
+    title: '接口',
     fill: '#0891b2',
     softFill: '#ecfeff',
     hoverFill: '#cffafe',
@@ -73,6 +85,8 @@ export const NODE_TYPE_STYLES: Record<string, NodeTypeStyle> = {
     badgeText: '#0891b2',
   },
   field: {
+    icon: '•',
+    title: '字段',
     fill: '#475569',
     softFill: '#f8fafc',
     hoverFill: '#f1f5f9',

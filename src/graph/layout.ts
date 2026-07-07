@@ -9,14 +9,14 @@ import type {
 } from '../types/table-tree'
 import { getVisibleNodes } from './visible'
 
-const ROW_HEIGHT = 82
-const NODE_HEIGHT = 54
+const ROW_HEIGHT = 102
+const NODE_HEIGHT = 72
 const HEADER_HEIGHT = 44
 const COLUMN_GAP = 42
 const TOP_PADDING = 82
 const LEFT_PADDING = 24
 const NODE_GAP = 24
-const ECO_LEAF_HEIGHT = 68
+const ECO_LEAF_HEIGHT = 88
 const ECO_SIBLING_GAP = 18
 const ECO_SUBTREE_GAP = 44
 
@@ -178,7 +178,7 @@ export const buildTableTreeLayout = (store: TableTreeStore, mode: TableTreeLayou
     return {
       ...node,
       x: column ? columnStarts[node.type] + width / 2 : fallbackX + width / 2,
-      y: yById.get(node.id) ?? TOP_PADDING,
+      y: node.manualY ?? yById.get(node.id) ?? TOP_PADDING,
       width,
       height: NODE_HEIGHT,
       columnId: column?.id ?? 'unknown',

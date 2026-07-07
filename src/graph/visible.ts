@@ -19,6 +19,7 @@ export const getVisibleNodes = (store: TableTreeStore): VisibleNode[] => {
       depth,
       pathKey: [...path, node.id].join('/'),
       collapsed: Boolean(node.collapsed),
+      manualY: node.manualY,
     })
 
     if (!node.collapsed) {

@@ -15,6 +15,7 @@ export interface TableTreeNode {
   parentId?: string
   childrenIds: string[]
   collapsed?: boolean
+  manualY?: number
   hasChildren?: boolean
   childrenLoaded?: boolean
   data?: Record<string, unknown>
@@ -37,6 +38,7 @@ export interface VisibleNode {
   depth: number
   pathKey: string
   collapsed: boolean
+  manualY?: number
 }
 
 export interface LayoutNode extends VisibleNode {

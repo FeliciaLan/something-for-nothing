@@ -681,8 +681,7 @@ dd {
 }
 
 .graph-column-header:hover .graph-column-resizer::after,
-.graph-column-resizer:hover::after,
-body.is-column-resizing .graph-column-resizer::after {
+.graph-column-resizer:hover::after {
   background:
     repeating-linear-gradient(
       90deg,
@@ -695,8 +694,7 @@ body.is-column-resizing .graph-column-resizer::after {
 }
 
 .graph-column-header:hover .graph-column-resizer::before,
-.graph-column-resizer:hover::before,
-body.is-column-resizing .graph-column-resizer::before {
+.graph-column-resizer:hover::before {
   opacity: 0.22;
 }
 
